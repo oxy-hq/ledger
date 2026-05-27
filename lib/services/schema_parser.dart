@@ -30,7 +30,30 @@ ViewSchema _parseView(YamlMap node) {
     listDisplay: node['list_display'] == null
         ? null
         : _parseListDisplay(node['list_display'] as YamlMap),
+    plannable: node['plannable'] == null
+        ? null
+        : _parsePlannable(node['plannable'] as YamlMap),
   );
+}
+
+Plannable _parsePlannable(YamlMap node) {
+  return Plannable(
+    logField: _requireString(node, 'log_field'),
+    logFormat: _parseLogFormat(_requireString(node, 'log_format')),
+  );
+}
+
+LogFormat _parseLogFormat(String s) {
+  switch (s) {
+    case 'time_string':
+      return LogFormat.timeString;
+    case 'iso_time':
+      return LogFormat.isoTime;
+    case 'iso_datetime':
+      return LogFormat.isoDateTime;
+    default:
+      throw FormatException('Unknown log format: $s');
+  }
 }
 
 Entity _parseEntity(YamlMap node) {

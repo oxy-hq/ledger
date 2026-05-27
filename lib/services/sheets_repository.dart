@@ -6,7 +6,18 @@ import '../models/view_schema.dart';
 import 'cell_codec.dart';
 
 /// One row from a sheet, keyed by dimension name.
+///
+/// Records loaded from [list] carry their sheet row position in a special
+/// `__row` key (zero-based data row index, i.e. row 0 == row 2 in the
+/// sheet because row 1 is the header). [update] uses this when the `id`
+/// dimension is missing or empty — e.g. existing rows that predate ledger
+/// adding an id column.
 typedef Record = Map<String, Object?>;
+
+/// Key used to stash the zero-based data row index on records loaded from
+/// the sheet, so [SheetsRepository.update] can identify them even when id
+/// is missing.
+const _rowIndexKey = '__row';
 
 /// CRUD over Google Sheets. Each [ViewSchema] picks a spreadsheet (its own
 /// `spreadsheet_id` override or the default) and a tab (its `table`). Row 1
@@ -107,7 +118,9 @@ class SheetsRepository {
 
     final records = <Record>[];
     for (var i = 1; i < values.length; i++) {
-      records.add(_rowToRecord(view, headers, values[i]));
+      final record = _rowToRecord(view, headers, values[i]);
+      record[_rowIndexKey] = i - 1; // zero-based data row
+      records.add(record);
     }
 
     if (onDate != null && view.dateField != null) {
@@ -154,20 +167,41 @@ class SheetsRepository {
     return toWrite;
   }
 
-  /// Updates an existing record (matched by `id`). Preserves cells in columns
-  /// we don't know about — only overwrites cells whose header maps to one of
-  /// the view's dimensions.
+  /// Updates an existing record. Resolution order:
+  ///   1. If the record carries a `__row` index (set by [list]), use that
+  ///      directly. This works for rows loaded from the sheet even when they
+  ///      lack an id value (e.g. legacy rows predating the id column).
+  ///   2. Otherwise, look up by `id`.
+  ///
+  /// Preserves cells in columns we don't know about — only overwrites cells
+  /// whose header maps to a dimension in [view]. Auto-assigns a UUID to the
+  /// id field if the view has one and the record doesn't yet.
   Future<void> update(ViewSchema view, Record record) async {
     final spreadsheetId = _spreadsheetIdFor(view);
-    final id = record['id'];
-    if (id == null) {
-      throw ArgumentError('Cannot update a record without an id');
-    }
     final headers = await _ensureHeaders(view);
-    final rowIndex = await _findRowIndex(view, id.toString());
-    if (rowIndex == null) {
-      throw StateError('No row with id=$id in ${view.table}');
+
+    int? rowIndex;
+    final stashed = record[_rowIndexKey];
+    if (stashed is int) {
+      rowIndex = stashed;
+    } else {
+      final id = record['id'];
+      if (id == null) {
+        throw ArgumentError(
+          'Cannot update a record without an id or row index',
+        );
+      }
+      rowIndex = await _findRowIndex(view, id.toString());
+      if (rowIndex == null) {
+        throw StateError('No row with id=$id in ${view.table}');
+      }
     }
+
+    // Backfill id for legacy rows that don't have one yet.
+    if (view.dimensionByName('id') != null && record['id'] == null) {
+      record['id'] = _uuid.v4();
+    }
+
     final existingRow = await _readRow(spreadsheetId, view.table, rowIndex);
 
     final row = <String>[];

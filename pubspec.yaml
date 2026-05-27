@@ -30,3 +30,4 @@ flutter:
     - assets/config.yaml
     - assets/service-account.json
     - assets/schemas/
+    - assets/templates/strength/

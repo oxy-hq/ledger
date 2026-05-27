@@ -9,15 +9,26 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 SCHEMAS_SRC="${SCHEMAS_SRC:-$HOME/repos/ledger-schemas/views}"
+TEMPLATES_SRC="${TEMPLATES_SRC:-$HOME/repos/ledger-schemas/templates}"
 SA_KEY_SRC="${SA_KEY_SRC:-$HOME/.config/ledger/service-account.json}"
 CONFIG_SRC="${CONFIG_SRC:-$HOME/.config/ledger/config.yaml}"
 
-mkdir -p assets/schemas
+mkdir -p assets/schemas assets/templates
 
 # Schemas: clear and recopy so deletions in the source propagate
 rm -f assets/schemas/*.view.yml
 cp "$SCHEMAS_SRC"/*.view.yml assets/schemas/
 echo "synced $(ls assets/schemas/*.view.yml | wc -l | tr -d ' ') schema(s) from $SCHEMAS_SRC"
+
+# Templates: mirror the templates/<view>/<name>.yml structure
+rm -rf assets/templates
+mkdir -p assets/templates
+if [ -d "$TEMPLATES_SRC" ]; then
+  cp -R "$TEMPLATES_SRC"/. assets/templates/
+  echo "synced $(find assets/templates -name '*.yml' | wc -l | tr -d ' ') template(s) from $TEMPLATES_SRC"
+else
+  echo "no templates dir at $TEMPLATES_SRC (skipping)"
+fi
 
 # Service account key
 cp "$SA_KEY_SRC" assets/service-account.json

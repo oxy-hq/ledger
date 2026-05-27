@@ -19,6 +19,9 @@ enum MeasureType { count, sum, average, max, min, countDistinct }
 /// Format used by the `derive:` block to compute a hidden field at save time.
 enum DeriveFormat { weekdayLong, weekdayShort, isoDate, isoDateTime }
 
+/// Format used by the `plannable.log_format` field for the "Log now" action.
+enum LogFormat { timeString, isoTime, isoDateTime }
+
 class ViewSchema {
   final String name;
   final String? description;
@@ -35,6 +38,7 @@ class ViewSchema {
   final List<Dimension> dimensions;
   final List<Measure> measures;
   final ListDisplay? listDisplay;
+  final Plannable? plannable;
 
   ViewSchema({
     required this.name,
@@ -47,6 +51,7 @@ class ViewSchema {
     required this.dimensions,
     required this.measures,
     this.listDisplay,
+    this.plannable,
   });
 
   Dimension? dimensionByName(String name) =>
@@ -149,4 +154,13 @@ class ListDisplay {
   final String? subtitle;
 
   ListDisplay({required this.title, this.subtitle});
+}
+
+/// Config for "plan then log" workflow: rows with [logField] empty are
+/// considered planned and get a "Log now" action in the timeline.
+class Plannable {
+  final String logField;
+  final LogFormat logFormat;
+
+  Plannable({required this.logField, required this.logFormat});
 }

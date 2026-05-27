@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../models/view_schema.dart';
+import '../services/log_now.dart';
 import '../services/sheets_repository.dart';
 import 'form_screen.dart';
+import 'templates_screen.dart';
 
 /// Date-filtered list of records for a single view.
 class TimelineScreen extends StatefulWidget {
@@ -50,10 +52,18 @@ class _TimelineScreenState extends State<TimelineScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final hasTemplates = widget.view.plannable != null ||
+        true; // always show templates button; it'll show "no templates" if empty
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.view.name),
         actions: [
+          if (hasTemplates)
+            IconButton(
+              icon: const Icon(Icons.list_alt),
+              onPressed: _openTemplates,
+              tooltip: 'Templates',
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _reload,
@@ -63,13 +73,14 @@ class _TimelineScreenState extends State<TimelineScreen> {
       ),
       body: Column(
         children: [
-          if (widget.view.dateField != null) _DateBar(
-            selected: _selectedDate,
-            onChanged: (d) {
-              setState(() => _selectedDate = d);
-              _reload();
-            },
-          ),
+          if (widget.view.dateField != null)
+            _DateBar(
+              selected: _selectedDate,
+              onChanged: (d) {
+                setState(() => _selectedDate = d);
+                _reload();
+              },
+            ),
           Expanded(
             child: FutureBuilder<List<Record>>(
               future: _records,
@@ -92,6 +103,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
                     record: records[i],
                     onTap: () => _edit(records[i]),
                     onDelete: () => _delete(records[i]),
+                    onLogNow: () => _logNow(records[i]),
                   ),
                 );
               },
@@ -104,6 +116,19 @@ class _TimelineScreenState extends State<TimelineScreen> {
         child: const Icon(Icons.add),
       ),
     );
+  }
+
+  Future<void> _openTemplates() async {
+    final applied = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => TemplatesScreen(
+          view: widget.view,
+          repository: widget.repository,
+          onDate: _selectedDate,
+        ),
+      ),
+    );
+    if (applied == true) _reload();
   }
 
   Future<void> _create() async {
@@ -159,6 +184,21 @@ class _TimelineScreenState extends State<TimelineScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Delete failed: $e')),
+      );
+    }
+  }
+
+  Future<void> _logNow(Record record) async {
+    final plannable = widget.view.plannable;
+    if (plannable == null) return;
+    record[plannable.logField] = logNowValue(plannable.logFormat);
+    try {
+      await widget.repository.update(widget.view, record);
+      _reload();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Log failed: $e')),
       );
     }
   }
@@ -248,17 +288,20 @@ class _RecordTile extends StatelessWidget {
   final Record record;
   final VoidCallback onTap;
   final VoidCallback onDelete;
+  final VoidCallback onLogNow;
 
   const _RecordTile({
     required this.view,
     required this.record,
     required this.onTap,
     required this.onDelete,
+    required this.onLogNow,
   });
 
   @override
   Widget build(BuildContext context) {
     final subtitle = _subtitleFor(view, record);
+    final planned = isPlanned(view, record);
     return Dismissible(
       key: ValueKey(record['id'] ?? UniqueKey()),
       direction: DismissDirection.endToStart,
@@ -273,8 +316,17 @@ class _RecordTile extends StatelessWidget {
         return false;
       },
       child: ListTile(
+        leading: planned
+            ? const Icon(Icons.radio_button_unchecked, color: Colors.orange)
+            : const Icon(Icons.check_circle, color: Colors.green),
         title: Text(_titleFor(view, record)),
         subtitle: subtitle == null ? null : Text(subtitle),
+        trailing: planned
+            ? FilledButton.tonal(
+                onPressed: onLogNow,
+                child: const Text('Log now'),
+              )
+            : null,
         onTap: onTap,
       ),
     );
