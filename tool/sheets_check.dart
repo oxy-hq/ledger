@@ -1,26 +1,46 @@
+// ignore_for_file: avoid_print
+
 import 'dart:io';
 
-import 'package:ledger/services/app_config.dart';
-import 'package:ledger/services/schema_loader.dart';
+import 'package:ledger/services/schema_parser.dart';
 import 'package:ledger/services/sheets_repository.dart';
+import 'package:yaml/yaml.dart';
 
-/// End-to-end smoke test that does NOT touch the UI:
-///   1. Loads app config + schemas
+/// End-to-end smoke test that does NOT touch the UI. Runs as a CLI script,
+/// reading the same external sources that tool/sync_assets.sh copies into the
+/// Flutter app bundle.
+///
+///   1. Reads config + schemas from filesystem
 ///   2. Connects to the Google Sheets workbook as the service account
 ///   3. Calls ensureSheet for each view (creates tabs + writes headers)
 ///   4. Creates a probe record, lists today's records, deletes the probe
 Future<void> main() async {
-  final config = await AppConfig.load();
-  print('config loaded:');
-  print('  schemas_dir: ${config.schemasDir}');
-  print('  spreadsheet_id: ${config.spreadsheetId}');
+  final home = Platform.environment['HOME']!;
+  final config = loadYaml(
+    await File('$home/.config/ledger/config.yaml').readAsString(),
+  ) as YamlMap;
+  final spreadsheetId = config['spreadsheet_id'] as String;
+  final schemasDir = config['schemas_dir'] as String;
+  final keyPath = config['service_account_key_path'] as String;
 
-  final views = await SchemaLoader.loadDir(config.schemasDir);
+  print('config:');
+  print('  schemas_dir: $schemasDir');
+  print('  spreadsheet_id: $spreadsheetId');
+
+  final viewFiles = Directory(schemasDir)
+      .listSync()
+      .whereType<File>()
+      .where((f) => f.path.endsWith('.view.yml'))
+      .toList()
+    ..sort((a, b) => a.path.compareTo(b.path));
+
+  final views = [for (final f in viewFiles) parseViewSchema(f.readAsStringSync())];
   print('\n${views.length} views loaded: ${views.map((v) => v.name).join(", ")}');
 
-  final repo = await SheetsRepository.connect(
-    spreadsheetId: config.spreadsheetId,
-    serviceAccountKeyPath: config.serviceAccountKeyPath,
+  final keyJson = await File(keyPath).readAsString();
+  final repo = await SheetsRepository.connectFromKey(
+    spreadsheetId: spreadsheetId,
+    serviceAccountKeyJson: keyJson,
   );
 
   for (final view in views) {

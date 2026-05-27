@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:googleapis/sheets/v4.dart' as sheets;
 import 'package:googleapis_auth/auth_io.dart';
 import 'package:uuid/uuid.dart';
@@ -27,13 +25,15 @@ class SheetsRepository {
 
   SheetsRepository._(this.spreadsheetId, this._api);
 
-  /// Authenticates via a service account JSON key file and returns a client.
-  static Future<SheetsRepository> connect({
+  /// Authenticates via a service account key (JSON as a string) and returns
+  /// a client. Caller is responsible for sourcing the JSON (file, asset, etc).
+  static Future<SheetsRepository> connectFromKey({
     required String spreadsheetId,
-    required String serviceAccountKeyPath,
+    required String serviceAccountKeyJson,
   }) async {
-    final keyJson = await File(serviceAccountKeyPath).readAsString();
-    final credentials = ServiceAccountCredentials.fromJson(keyJson);
+    final credentials = ServiceAccountCredentials.fromJson(
+      serviceAccountKeyJson,
+    );
     final client = await clientViaServiceAccount(
       credentials,
       [sheets.SheetsApi.spreadsheetsScope],

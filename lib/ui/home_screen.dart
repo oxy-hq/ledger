@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 
 import '../models/view_schema.dart';
 import '../services/app_config.dart';
@@ -26,10 +27,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<_Bootstrap> _initialize() async {
     final config = await AppConfig.load();
-    final views = await SchemaLoader.loadDir(config.schemasDir);
-    final repo = await SheetsRepository.connect(
+    final views = await SchemaLoader.loadAll();
+    final keyJson = await rootBundle.loadString('assets/service-account.json');
+    final repo = await SheetsRepository.connectFromKey(
       spreadsheetId: config.spreadsheetId,
-      serviceAccountKeyPath: config.serviceAccountKeyPath,
+      serviceAccountKeyJson: keyJson,
     );
     for (final view in views) {
       await repo.ensureSheet(view);
@@ -61,7 +63,7 @@ class _HomeScreenState extends State<HomeScreen> {
           }
           final data = snap.data!;
           if (data.views.isEmpty) {
-            return const Center(child: Text('No views in schemas directory.'));
+            return const Center(child: Text('No views in assets/schemas/.'));
           }
           return ListView.separated(
             itemCount: data.views.length,

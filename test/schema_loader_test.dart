@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ledger/models/view_schema.dart';
-import 'package:ledger/services/schema_loader.dart';
+import 'package:ledger/services/schema_parser.dart';
 
 const _meals = '''
 name: meals
@@ -66,9 +66,9 @@ measures:
 ''';
 
 void main() {
-  group('SchemaLoader.parse', () {
+  group('parseViewSchema', () {
     test('parses a complete meals view', () {
-      final view = SchemaLoader.parse(_meals);
+      final view = parseViewSchema(_meals);
 
       expect(view.name, 'meals');
       expect(view.description, 'Daily meal log');
@@ -78,7 +78,7 @@ void main() {
     });
 
     test('parses entities', () {
-      final view = SchemaLoader.parse(_meals);
+      final view = parseViewSchema(_meals);
 
       expect(view.entities, hasLength(1));
       expect(view.entities[0].name, 'meal_entry');
@@ -87,7 +87,7 @@ void main() {
     });
 
     test('parses dimensions with input specs', () {
-      final view = SchemaLoader.parse(_meals);
+      final view = parseViewSchema(_meals);
 
       expect(view.dimensions, hasLength(5));
 
@@ -110,7 +110,7 @@ void main() {
     });
 
     test('id field is non-editable', () {
-      final view = SchemaLoader.parse(_meals);
+      final view = parseViewSchema(_meals);
 
       final id = view.dimensionByName('id')!;
       expect(id.input!.editable, false);
@@ -121,14 +121,14 @@ void main() {
     });
 
     test('parses list_display', () {
-      final view = SchemaLoader.parse(_meals);
+      final view = parseViewSchema(_meals);
 
       expect(view.listDisplay!.title, 'meal');
       expect(view.listDisplay!.subtitle, '\${calories} cal');
     });
 
     test('parses measures', () {
-      final view = SchemaLoader.parse(_meals);
+      final view = parseViewSchema(_meals);
 
       expect(view.measures, hasLength(2));
       expect(view.measures[0].type, MeasureType.count);
@@ -137,7 +137,7 @@ void main() {
     });
 
     test('defaults table to name and datasource to gsheets', () {
-      final view = SchemaLoader.parse('''
+      final view = parseViewSchema('''
 name: foo
 entities:
   - name: e
@@ -153,7 +153,7 @@ dimensions:
 
     test('throws on unknown dimension type', () {
       expect(
-        () => SchemaLoader.parse('''
+        () => parseViewSchema('''
 name: bad
 entities: []
 dimensions:
