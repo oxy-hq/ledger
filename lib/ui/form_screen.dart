@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/view_schema.dart';
+import '../services/derive.dart';
 import '../services/sheets_repository.dart';
 import 'widgets/field_widgets.dart';
 
@@ -92,6 +93,7 @@ class _FormScreenState extends State<FormScreen> {
 
     setState(() => _saving = true);
     try {
+      applyDerives(widget.view, _record);
       if (widget.isEdit) {
         await widget.repository.update(widget.view, _record);
       } else {

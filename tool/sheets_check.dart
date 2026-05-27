@@ -39,7 +39,7 @@ Future<void> main() async {
 
   final keyJson = await File(keyPath).readAsString();
   final repo = await SheetsRepository.connectFromKey(
-    spreadsheetId: spreadsheetId,
+    defaultSpreadsheetId: spreadsheetId,
     serviceAccountKeyJson: keyJson,
   );
 

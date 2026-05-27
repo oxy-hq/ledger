@@ -16,12 +16,21 @@ enum EntityType { primary, foreign }
 
 enum MeasureType { count, sum, average, max, min, countDistinct }
 
+/// Format used by the `derive:` block to compute a hidden field at save time.
+enum DeriveFormat { weekdayLong, weekdayShort, isoDate, isoDateTime }
+
 class ViewSchema {
   final String name;
   final String? description;
   final String datasource;
   final String table;
   final String? dateField;
+
+  /// Optional per-view override of the default spreadsheet id (from
+  /// `assets/config.yaml`). Lets one view target a different sheet without
+  /// affecting others.
+  final String? spreadsheetId;
+
   final List<Entity> entities;
   final List<Dimension> dimensions;
   final List<Measure> measures;
@@ -33,6 +42,7 @@ class ViewSchema {
     required this.datasource,
     required this.table,
     this.dateField,
+    this.spreadsheetId,
     required this.entities,
     required this.dimensions,
     required this.measures,
@@ -42,9 +52,22 @@ class ViewSchema {
   Dimension? dimensionByName(String name) =>
       dimensions.where((d) => d.name == name).firstOrNull;
 
-  /// Dimensions that should appear in the entry form (input.editable != false).
-  List<Dimension> get editableDimensions =>
-      dimensions.where((d) => d.input?.editable ?? true).toList();
+  /// Looks up a dimension by its `expr` (the sheet column name).
+  /// Falls back to `name` for backward compatibility with views whose
+  /// dimensions don't specify expr.
+  Dimension? dimensionByExpr(String expr) =>
+      dimensions.where((d) => d.expr == expr).firstOrNull ??
+      dimensions.where((d) => d.name == expr).firstOrNull;
+
+  /// Dimensions that should appear in the entry form (input.editable != false
+  /// and not derived).
+  List<Dimension> get editableDimensions => dimensions
+      .where((d) => (d.input?.editable ?? true) && d.derive == null)
+      .toList();
+
+  /// Dimensions with a `derive:` block (auto-computed at save time).
+  List<Dimension> get derivedDimensions =>
+      dimensions.where((d) => d.derive != null).toList();
 }
 
 class Entity {
@@ -62,6 +85,7 @@ class Dimension {
   final String? description;
   final List<String>? samples;
   final InputSpec? input;
+  final Derive? derive;
 
   Dimension({
     required this.name,
@@ -70,6 +94,7 @@ class Dimension {
     this.description,
     this.samples,
     this.input,
+    this.derive,
   });
 }
 
@@ -93,6 +118,16 @@ class InputSpec {
     this.placeholder,
     this.editable = true,
   });
+}
+
+/// A small derived-field spec: take the value of dimension [from], pass it
+/// through [format], and write the result into this dimension at save time.
+/// Derived dimensions are hidden from the form.
+class Derive {
+  final String from;
+  final DeriveFormat format;
+
+  Derive({required this.from, required this.format});
 }
 
 class Measure {

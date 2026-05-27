@@ -1,6 +1,4 @@
-import 'dart:convert';
-
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 
 import '../models/view_schema.dart';
 import 'schema_parser.dart';
@@ -15,9 +13,9 @@ class SchemaLoader {
   /// Loads every `.view.yml` file bundled under `assets/schemas/`,
   /// returning views sorted by name.
   static Future<List<ViewSchema>> loadAll() async {
-    final manifestRaw = await rootBundle.loadString('AssetManifest.json');
-    final manifest = json.decode(manifestRaw) as Map<String, dynamic>;
-    final viewPaths = manifest.keys
+    final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+    final viewPaths = manifest
+        .listAssets()
         .where((k) => k.startsWith(_schemaAssetPrefix) && k.endsWith('.view.yml'))
         .toList();
 

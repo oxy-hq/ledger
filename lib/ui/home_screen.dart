@@ -30,7 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final views = await SchemaLoader.loadAll();
     final keyJson = await rootBundle.loadString('assets/service-account.json');
     final repo = await SheetsRepository.connectFromKey(
-      spreadsheetId: config.spreadsheetId,
+      defaultSpreadsheetId: config.spreadsheetId,
       serviceAccountKeyJson: keyJson,
     );
     for (final view in views) {

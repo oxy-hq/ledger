@@ -23,6 +23,7 @@ ViewSchema _parseView(YamlMap node) {
     datasource: (node['datasource'] as String?) ?? 'gsheets',
     table: (node['table'] as String?) ?? name,
     dateField: node['date_field'] as String?,
+    spreadsheetId: node['spreadsheet_id'] as String?,
     entities: _parseList(node['entities'], _parseEntity),
     dimensions: _parseList(node['dimensions'], _parseDimension),
     measures: _parseList(node['measures'], _parseMeasure),
@@ -57,6 +58,9 @@ Dimension _parseDimension(YamlMap node) {
         ? null
         : (node['samples'] as YamlList).map((e) => e.toString()).toList(),
     input: node['input'] == null ? null : _parseInput(node['input'] as YamlMap),
+    derive: node['derive'] == null
+        ? null
+        : _parseDerive(node['derive'] as YamlMap),
   );
 }
 
@@ -72,6 +76,13 @@ InputSpec _parseInput(YamlMap node) {
         : (node['options'] as YamlList).map((e) => e.toString()).toList(),
     placeholder: node['placeholder'] as String?,
     editable: (node['editable'] as bool?) ?? true,
+  );
+}
+
+Derive _parseDerive(YamlMap node) {
+  return Derive(
+    from: _requireString(node, 'from'),
+    format: _parseDeriveFormat(_requireString(node, 'format')),
   );
 }
 
@@ -170,5 +181,20 @@ MeasureType _parseMeasureType(String s) {
       return MeasureType.countDistinct;
     default:
       throw FormatException('Unknown measure type: $s');
+  }
+}
+
+DeriveFormat _parseDeriveFormat(String s) {
+  switch (s) {
+    case 'weekday_long':
+      return DeriveFormat.weekdayLong;
+    case 'weekday_short':
+      return DeriveFormat.weekdayShort;
+    case 'iso_date':
+      return DeriveFormat.isoDate;
+    case 'iso_datetime':
+      return DeriveFormat.isoDateTime;
+    default:
+      throw FormatException('Unknown derive format: $s');
   }
 }
