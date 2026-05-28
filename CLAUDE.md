@@ -303,4 +303,7 @@ Always gate destructive scripts behind `--confirm`.
 
 - Schema feature reference: `../ledger-schemas/README.md`
 - User-facing project overview: `./README.md`
+- **Oxy / airlayer compatibility principle:** `./docs/oxy-compatibility.md`
+  — how ledger shares `config.yml` with oxy and airlayer (YAML contract,
+  not code dependency).
 - Memory entries for this project: `~/.claude/projects/-Users-robertyi-repos-ledger/memory/MEMORY.md`
