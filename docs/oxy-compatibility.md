@@ -170,17 +170,13 @@ sibling concerns sharing `config.yml`:
     apps/*.app.yml      # ledger apps (analytics built on the CRUD substrate)
 ```
 
-`ledger.yaml` adds one optional field to point at the shared config:
+`ledger.yaml` does *not* point at the shared config explicitly. The
+canonical layout makes pure walk-up sufficient (see below).
 
 ```yaml
 app_name: "Poke House Inventory"
 package_id: com.robertyi.pokehouse
 icon: assets/icon.png
-
-# Path to the shared oxy config — relative to ledger.yaml.
-# If omitted, ledger walks up from ledger.yaml's directory looking for
-# a config.yml (see "Config discovery" below).
-oxy_config: ../oxy/config.yml
 
 # Optional: which database from config.yml to use when a view doesn't
 # specify `datasource:`. Today's sheets-only views work unchanged
@@ -189,32 +185,52 @@ default_database: clickhouse
 ```
 
 The `brand.dart` CLI grows a small responsibility: when it syncs assets,
-it also copies the resolved `config.yml` into `assets/config.yml`, so the
-bundled APK has everything it needs at runtime.
+it walks up from `ledger.yaml`'s directory to discover `config.yml`, then
+copies it into `assets/config.yml` so the bundled APK has everything it
+needs at runtime.
 
-### Config discovery (mirrors airlayer)
+### Config discovery (mirrors airlayer exactly)
 
 Airlayer walks up from `cwd` looking for `config.yml`
-(`~/repos/airlayer/src/cli/mod.rs:find_project_root`). Explicit `--config`
-always wins; otherwise the first ancestor directory containing
-`config.yml` is the project root.
+(`~/repos/airlayer/src/cli/mod.rs:find_project_root`). One path per
+ancestor level, stop at filesystem root.
 
-Ledger uses the same logic, with one small extension: at each ancestor
-level, look for *either* `./config.yml` or `./oxy/config.yml`. That
-covers both layouts — config-at-customer-root *and* config-nested-under
-`oxy/`, which is the convention in `customer-repos/<customer>-oxy/`.
+Ledger uses the **same** logic — single-path walk-up, no extensions.
+Implementation at `lib/services/oxy_config_discovery.dart`:
 
+```dart
+OxyConfigLocation? findOxyConfig({required String from}) {
+  var dir = Directory(p.absolute(from));
+  while (true) {
+    final candidate = File(p.join(dir.path, 'config.yml'));
+    if (candidate.existsSync()) {
+      return OxyConfigLocation(configPath: candidate.path, projectRoot: dir.path);
+    }
+    final parent = dir.parent;
+    if (parent.path == dir.path) return null;
+    dir = parent;
+  }
+}
 ```
-Starting from /<ledger.yaml dir>/, at each level:
-  ./config.yml      ?  → if found, that's the project root.
-  ./oxy/config.yml  ?  → if found, the *enclosing* dir is the project
-                          root, and oxy/ is the data-tier subdir.
-  cd ..
+
+For this to find the shared config, the canonical layout puts
+`config.yml` at the **customer-repo root** (not inside an `oxy/`
+subdir). Both `oxy/` and `ledger/` then walk up one level and discover
+it.
+
+#### Migrating legacy pokehouse-oxy layout
+
+Today `~/customer-repos/pokehouse/pokehouse-oxy/oxy/config.yml` lives
+inside the `oxy/` subdir. One-time move to the canonical location:
+
+```sh
+cd ~/customer-repos/pokehouse/pokehouse-oxy
+mv oxy/config.yml ./config.yml
 ```
 
-Explicit `oxy_config:` in `ledger.yaml` (or `--config` on the CLI) always
-short-circuits the search. The discovery code lives at
-`lib/services/oxy_config_discovery.dart`.
+Oxy keeps working unchanged — it just walks up one more level from
+`oxy/` to find the config. No code change required, and ledger can
+plug in as a sibling.
 
 ### Why monorepo (oxy/ + ledger/ siblings)
 
@@ -316,6 +332,20 @@ Things this principle deliberately does *not* prescribe:
 - **OAuth flows on mobile.** For warehouses that need OAuth (snowflake,
   databricks SSO), this is the same problem the web target hits.
   Probably needs a v2 pass with `flutter_appauth` or similar.
+
+## Non-goals
+
+- **Two-separate-repos.** We do not support `<customer>-oxy/` and
+  `<customer>-ledger/` as separate sibling repos with cross-references.
+  One customer = one repo. If you have two, merge them (cheap with
+  `git subtree`).
+- **Config in a `oxy/` subdir.** Mirroring airlayer's discovery means
+  config.yml lives at the project root. We don't extend the walk-up to
+  also peek into `./oxy/`. Legacy customers with config nested under
+  `oxy/` should run the one-line `mv` shown above.
+- **Symlinks for sharing.** Workable in principle, but it's load-bearing
+  filesystem magic that doesn't survive a fresh git clone cleanly. Better
+  to keep config.yml at the canonical location everyone walks up to.
 
 ---
 
