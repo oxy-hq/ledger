@@ -249,53 +249,67 @@ both of which add friction for a single-developer setup.
 
 ## Implementation phases
 
-This doc captures the principle; here's the order I'd expand ledger
-toward full warehouse support, smallest first.
+This doc captures the principle; here's the order to expand ledger
+toward full warehouse support.
 
-### Phase 1 — parse the contract (no behavior change)
+### Phase 1 — parse the contract  ✅ shipped
 
-- Add `oxy_config:` to `ledger.yaml`. When present, parse the referenced
-  `config.yml`.
-- Implement Dart `DatabaseConfig.fromYaml(...)` for the discriminated
-  union (mirroring oxy's tags).
-- All variants except `sheets` parse into `UnsupportedConfig` for now.
-- Existing sheets-only views keep working exactly as today.
+- `DatabaseConfig` sealed class
+  (`lib/models/database_config.dart`) mirrors oxy's `DatabaseType` tags.
+  Variants: `sheets`, `postgres`, `redshift`, `airhouse`,
+  `airhouse_managed`, `bigquery`, `snowflake`, `clickhouse`, `mysql`,
+  `duckdb`, `motherduck`, `databricks`, `domo`. Unknown `type:` values
+  fall into `UnknownConfig` (parses cleanly, throws at use).
+- `WarehouseConnector` interface
+  (`lib/services/warehouse_connector.dart`) — five methods:
+  `ensureTable`, `list`, `create`, `update`, `delete`.
+- `SheetsRepository` implements `WarehouseConnector` directly. No other
+  concrete connectors yet — every other variant resolves to
+  `UnimplementedConnector`, which throws clear errors at use time.
+- `ConnectorRegistry`
+  (`lib/services/connector_registry.dart`) — given a list of
+  `DatabaseConfig`s + the bundled sheets repo, returns the right
+  connector for each view's `datasource:`. Bundled sheets is the
+  fallback.
+- Bootstrap builds the registry; `ensureTable` is called per view at
+  startup through the registry.
 
-### Phase 2 — route by `datasource`
+### Phase 2 — wire config.yml discovery into the build  (next)
 
-- `SheetsRepository` becomes one implementation of a `DatabaseConnector`
-  interface (`list`, `create`, `update`, `delete`, `ensureSheet`).
-- A registry maps `DatabaseConfig` variants to connector implementations.
-- View loading resolves `datasource:` against `config.yml`. If the
-  resolved config is `UnsupportedConfig`, the view surfaces a clear error
-  ("clickhouse not supported by this build").
+- `brand.dart` walks up from `ledger.yaml` to find `config.yml` (via
+  `oxy_config_discovery.dart`).
+- The discovered `config.yml` is copied into `assets/config.yaml`,
+  replacing the legacy single-`spreadsheet_id:` shape.
+- `AppConfig` parses `databases:` from the bundled config; the bootstrap
+  passes that list into `ConnectorRegistry.build`.
+- After this phase, `datasource:` references in `.view.yml` files are
+  actually routed.
 
-### Phase 3 — first non-sheets warehouse
+### Phase 3 — first non-sheets concrete connector
 
-- Postgres or BigQuery first — both have well-maintained Dart packages.
+- Postgres first (covers `postgres`, `redshift`, `airhouse` since they
+  share the wire protocol). Pure-Dart `postgres ^3.x` package.
 - Generic SQL CRUD: `INSERT … VALUES (…) RETURNING *`, `UPDATE … WHERE
-  id = ?`, `DELETE … WHERE id = ?`, `SELECT * FROM … WHERE date_field
-  BETWEEN …`.
-- Validates the abstraction. Probably reveals a few shape mismatches
-  between sheets-style CRUD and SQL-style CRUD (e.g. sheets has trailing
-  empty cell trimming; SQL is exact-arity).
+  id = ?`, `DELETE … WHERE id = ?`, `SELECT * FROM … [WHERE date = ?]`.
+- Validates the abstraction. Likely reveals shape mismatches between
+  sheets-style CRUD and SQL-style CRUD (sheets has trailing empty cell
+  trimming; SQL is exact-arity).
 
-### Phase 4 — long tail via airlayer
+### Phase 4 — long tail via airlayer FFI
 
-- Snowflake, Databricks, Redshift, Domo, MotherDuck, etc. don't have
-  great Dart clients. Route their CRUD through airlayer (which already
-  has all the connector code as Rust crates).
-- Adds a write-side to airlayer's FFI (currently read-only). The shape
-  could be a single `execute_dml(config, sql)` that returns affected
-  rows. Ledger generates the SQL; airlayer does the connection +
-  transport.
-- This mirrors how ledger already uses airlayer for analytics — it
-  becomes the universal warehouse client and ledger stays Dart.
+- Snowflake, Databricks, Domo, MotherDuck, etc. don't have great Dart
+  clients. Route their CRUD through airlayer (which already has all the
+  connector code as Rust crates).
+- Adds a write-side to airlayer's FFI (currently read-only). One
+  `execute_dml(config, sql)` call that returns affected rows. Ledger
+  generates the SQL; airlayer does the connection + transport.
+- Mirrors how ledger already uses airlayer for analytics — airlayer
+  becomes the universal warehouse client and ledger stays pure Dart.
 
-### Phase 5 — airhouse_managed and OAuth
+### Phase 5 — `airhouse_managed` and OAuth
 
 - `airhouse_managed` (per-user credentials managed by oxy) requires a
-  ledger ↔ oxy auth step. Out of scope for the initial pass — ledger
+  ledger ↔ oxy auth dance. Deferred until the rest is settled. Ledger
   starts with explicit credentials in `config.yml` or env-var lookups.
 
 ---

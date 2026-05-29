@@ -4,6 +4,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import '../models/view_schema.dart';
 import '../services/app_config.dart';
+import '../services/connector_registry.dart';
 import '../services/schema_loader.dart';
 import '../services/settings_store.dart';
 import '../services/sheets_repository.dart';
@@ -45,12 +46,22 @@ class _HomeScreenState extends State<HomeScreen> {
       defaultSpreadsheetId: spreadsheetId,
       serviceAccountKeyJson: keyJson,
     );
+    // Build the connector registry. For now, the bundled sheets connector
+    // is the only concrete implementation; non-sheets datasources resolve
+    // to UnimplementedConnector and throw at use time. When brand.dart
+    // starts copying a discovered config.yml into assets, the configs
+    // list will populate from there.
+    final registry = await ConnectorRegistry.build(
+      configs: const [],
+      bundledSheets: repo,
+    );
     for (final view in views) {
-      await repo.ensureSheet(view);
+      await registry.forView(view).ensureTable(view);
     }
     return _Bootstrap(
       views: views,
       repository: repo,
+      registry: registry,
       settings: settings,
       appName: packageInfo.appName,
     );
@@ -149,6 +160,7 @@ class _HomeScreenState extends State<HomeScreen> {
 class _Bootstrap {
   final List<ViewSchema> views;
   final SheetsRepository repository;
+  final ConnectorRegistry registry;
   final Settings settings;
 
   /// OS-level app label (from strings.xml, which brand.dart writes per
@@ -158,6 +170,7 @@ class _Bootstrap {
   _Bootstrap({
     required this.views,
     required this.repository,
+    required this.registry,
     required this.settings,
     required this.appName,
   });

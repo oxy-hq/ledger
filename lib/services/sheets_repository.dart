@@ -2,8 +2,10 @@ import 'package:googleapis/sheets/v4.dart' as sheets;
 import 'package:googleapis_auth/auth_io.dart';
 import 'package:uuid/uuid.dart';
 
+import '../models/database_config.dart';
 import '../models/view_schema.dart';
 import 'cell_codec.dart';
+import 'warehouse_connector.dart';
 
 /// One row from a sheet, keyed by dimension name.
 ///
@@ -19,10 +21,13 @@ typedef Record = Map<String, Object?>;
 /// is missing. Public so callers can bump indexes after an insert-at-top.
 const rowIndexKey = '__row';
 
-/// CRUD over Google Sheets. Each [ViewSchema] picks a spreadsheet (its own
-/// `spreadsheet_id` override or the default) and a tab (its `table`). Row 1
-/// is the header row; cell columns are matched to dimensions by [Dimension.expr].
-class SheetsRepository {
+/// CRUD over Google Sheets — one implementation of [WarehouseConnector].
+/// Each [ViewSchema] picks a spreadsheet (its own `spreadsheet_id` override
+/// or the default) and a tab (its `table`). Row 1 is the header row; cell
+/// columns are matched to dimensions by [Dimension.expr].
+class SheetsRepository implements WarehouseConnector {
+  @override
+  final SheetsConfig config;
   final String defaultSpreadsheetId;
   final sheets.SheetsApi _api;
   static const _uuid = Uuid();
@@ -30,13 +35,14 @@ class SheetsRepository {
   /// Cache of headers per (spreadsheet, tab) so writes don't re-fetch row 1.
   final Map<String, List<String>> _headerCache = {};
 
-  SheetsRepository._(this.defaultSpreadsheetId, this._api);
+  SheetsRepository._(this.config, this.defaultSpreadsheetId, this._api);
 
   /// Authenticates via a service account key and returns a client. Caller
   /// is responsible for sourcing the JSON (file, asset, etc).
   static Future<SheetsRepository> connectFromKey({
     required String defaultSpreadsheetId,
     required String serviceAccountKeyJson,
+    SheetsConfig? config,
   }) async {
     final credentials = ServiceAccountCredentials.fromJson(
       serviceAccountKeyJson,
@@ -46,7 +52,11 @@ class SheetsRepository {
       [sheets.SheetsApi.spreadsheetsScope],
     );
     final api = sheets.SheetsApi(client);
-    return SheetsRepository._(defaultSpreadsheetId, api);
+    return SheetsRepository._(
+      config ?? SheetsConfig(name: 'gsheets', spreadsheetId: defaultSpreadsheetId),
+      defaultSpreadsheetId,
+      api,
+    );
   }
 
   String _spreadsheetIdFor(ViewSchema view) =>
@@ -58,6 +68,11 @@ class SheetsRepository {
   /// Ensures the sheet tab exists and has every header the view expects.
   /// Additive — preserves existing headers (and their order) and only appends
   /// missing columns at the end. Safe to run against pre-existing sheets.
+  @override
+  Future<void> ensureTable(ViewSchema view) => ensureSheet(view);
+
+  /// Sheets-specific name preserved for clarity. Identical behavior to
+  /// [ensureTable].
   Future<void> ensureSheet(ViewSchema view) async {
     final spreadsheetId = _spreadsheetIdFor(view);
     final ss = await _api.spreadsheets.get(spreadsheetId);
@@ -109,6 +124,7 @@ class SheetsRepository {
 
   /// Lists all records for [view], optionally filtered to those whose
   /// `date_field` falls on [onDate].
+  @override
   Future<List<Record>> list(ViewSchema view, {DateTime? onDate}) async {
     final spreadsheetId = _spreadsheetIdFor(view);
     final values = await _readAll(spreadsheetId, view.table);
@@ -161,6 +177,7 @@ class SheetsRepository {
   /// Note: every existing in-memory record's `__row` index becomes stale by
   /// -1 after this call. Callers that maintain a list of records must bump
   /// their `__row` values by +1 (see [shiftRowIndexes]).
+  @override
   Future<Record> create(ViewSchema view, Record record) async {
     final spreadsheetId = _spreadsheetIdFor(view);
     final headers = await _ensureHeaders(view);
@@ -224,6 +241,7 @@ class SheetsRepository {
   /// Preserves cells in columns we don't know about — only overwrites cells
   /// whose header maps to a dimension in [view]. Auto-assigns a UUID to the
   /// id field if the view has one and the record doesn't yet.
+  @override
   Future<void> update(ViewSchema view, Record record) async {
     final spreadsheetId = _spreadsheetIdFor(view);
     final headers = await _ensureHeaders(view);
@@ -275,6 +293,7 @@ class SheetsRepository {
   /// Deletes [record]'s sheet row. Resolution order mirrors [update]:
   /// the stashed `__row` index from [list], then falling back to lookup by
   /// `id`. Returns silently if the row can't be located.
+  @override
   Future<void> delete(ViewSchema view, Record record) async {
     final spreadsheetId = _spreadsheetIdFor(view);
     int? rowIndex;
