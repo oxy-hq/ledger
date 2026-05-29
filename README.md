@@ -1,8 +1,12 @@
+<p align="center"><img src="assets/readme-banner.png" alt="Airledger"/></p>
+
 # airledger
 
-Schema-driven mobile CRUD app. Declare a tracker in YAML, get a working
-Android app with auto-generated forms, a date-filtered timeline, and
-warehouse persistence — no per-tracker code.
+Schema-driven mobile CRUD app. The **input layer** of the air* stack
+(alongside [airlayer](https://github.com/oxy-hq/airlayer) and oxy).
+Declare a tracker in YAML, get a working Android app with auto-generated
+forms, a date-filtered timeline, and warehouse persistence — no
+per-tracker code.
 
 Schemas live alongside an [oxy](https://github.com/oxy-hq/oxy-internal)
 project in a customer repo, sharing the same `config.yml` for warehouse
