@@ -14,3 +14,32 @@ services:
       interval: 2s
       timeout: 5s
       retries: 10
+
+  mysql:
+    # Pin to 8.0 — mysql 8.4 dropped the --default-authentication-plugin
+    # flag we need to fall back to mysql_native_password (mysql_client
+    # can't speak caching_sha2_password over plaintext).
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_DATABASE: airledger_test
+      MYSQL_USER: airledger
+      MYSQL_PASSWORD: airledgertest
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "${AIRLEDGER_MYSQL_PORT:-13307}:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24-alpine
+    ports:
+      - "${AIRLEDGER_CH_HTTP_PORT:-18124}:8123"
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 2s
+      timeout: 5s
+      retries: 15

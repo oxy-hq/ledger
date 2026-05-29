@@ -1,5 +1,8 @@
 import '../models/database_config.dart';
 import '../models/view_schema.dart';
+import 'bigquery_connector.dart';
+import 'clickhouse_connector.dart';
+import 'mysql_connector.dart';
 import 'postgres_connector.dart';
 import 'sheets_repository.dart';
 import 'warehouse_connector.dart';
@@ -21,16 +24,24 @@ class ConnectorRegistry {
         _fallback = fallback;
 
   /// Builds a registry by instantiating one connector per [DatabaseConfig].
-  /// Live network connections (Postgres / etc.) are opened during build.
-  /// `bundledSheets` is wired in as both the `gsheets` entry (if no other
-  /// sheets config exists) and the registry's general fallback.
+  /// Live network connections (Postgres / MySQL / ClickHouse / BigQuery)
+  /// are opened during build.
+  ///
+  /// [serviceAccountKeyJson] is required for BigQuery configs (and any
+  /// other Google-auth-backed connector). When omitted, BigQuery configs
+  /// fall through to [UnimplementedConnector].
   static Future<ConnectorRegistry> build({
     required List<DatabaseConfig> configs,
     SheetsRepository? bundledSheets,
+    String? serviceAccountKeyJson,
   }) async {
     final byName = <String, WarehouseConnector>{};
     for (final cfg in configs) {
-      byName[cfg.name] = await _instantiate(cfg, bundledSheets);
+      byName[cfg.name] = await _instantiate(
+        cfg,
+        bundledSheets: bundledSheets,
+        serviceAccountKeyJson: serviceAccountKeyJson,
+      );
     }
     if (bundledSheets != null && byName['gsheets'] == null) {
       byName['gsheets'] = bundledSheets;
@@ -59,9 +70,10 @@ class ConnectorRegistry {
   Iterable<WarehouseConnector> get all => _byName.values;
 
   static Future<WarehouseConnector> _instantiate(
-    DatabaseConfig cfg,
+    DatabaseConfig cfg, {
     SheetsRepository? bundledSheets,
-  ) async {
+    String? serviceAccountKeyJson,
+  }) async {
     return switch (cfg) {
       // Sheets uses the bundled connection — a fresh one would require auth,
       // which the bundled instance already holds.
@@ -72,6 +84,14 @@ class ConnectorRegistry {
       PostgresConfig() => await PostgresConnector.connect(cfg),
       RedshiftConfig() => await PostgresConnector.connect(cfg.postgres),
       AirhouseConfig() => await PostgresConnector.connect(cfg.postgres),
+      MysqlConfig() => await MysqlConnector.connect(cfg),
+      ClickhouseConfig() => await ClickhouseConnector.connect(cfg),
+      BigQueryConfig() => serviceAccountKeyJson != null
+          ? await BigQueryConnector.connect(
+              cfg,
+              serviceAccountKeyJson: serviceAccountKeyJson,
+            )
+          : UnimplementedConnector(cfg),
       // Other warehouse types parse cleanly but throw at use time.
       // See docs/oxy-compatibility.md for the implementation plan.
       _ => UnimplementedConnector(cfg),
