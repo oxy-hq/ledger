@@ -7,14 +7,21 @@ import '../services/app_config.dart';
 import '../services/connector_registry.dart';
 import '../services/icon_resolver.dart';
 import '../services/schema_loader.dart';
-import '../services/settings_store.dart';
 import '../services/sheets_repository.dart';
 import 'apps_screen.dart';
-import 'settings_screen.dart';
 import 'timeline_screen.dart';
+import 'today_dashboard.dart';
 
-/// App entrypoint screen. Loads settings + config + schemas, connects to
-/// Sheets, and presents the list of views.
+/// App entrypoint screen. Loads config + schemas, connects to the
+/// warehouse, and presents:
+///
+///   1. A compact "today" dashboard at the top showing per-view counts
+///   2. The list of views
+///   3. An "Apps" entry for `.app.yml` analytics
+///
+/// Database + schemas are baked into the APK at build time (via
+/// `tool/brand.dart` resolving `config.yml` + `.env`). No in-app
+/// settings page — what's bundled is what runs.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -32,26 +39,16 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<_Bootstrap> _initialize() async {
-    final settings = await SettingsStore.load();
     final assetConfig = await AppConfig.load();
     final packageInfo = await PackageInfo.fromPlatform();
 
-    // Settings overrides the bundled asset config; either falls back to the
-    // other if missing.
-    final spreadsheetId =
-        settings.spreadsheetId ?? assetConfig.spreadsheetId;
-
     final views = await SchemaLoader.loadAll();
-    final keyJson = await rootBundle.loadString('assets/service-account.json');
+    final keyJson =
+        await rootBundle.loadString('assets/service-account.json');
     final repo = await SheetsRepository.connectFromKey(
-      defaultSpreadsheetId: spreadsheetId,
+      defaultSpreadsheetId: assetConfig.spreadsheetId,
       serviceAccountKeyJson: keyJson,
     );
-    // Build the connector registry. For now, the bundled sheets connector
-    // is the only concrete implementation; non-sheets datasources resolve
-    // to UnimplementedConnector and throw at use time. When brand.dart
-    // starts copying a discovered config.yml into assets, the configs
-    // list will populate from there.
     final registry = await ConnectorRegistry.build(
       configs: const [],
       bundledSheets: repo,
@@ -63,18 +60,8 @@ class _HomeScreenState extends State<HomeScreen> {
       views: views,
       repository: repo,
       registry: registry,
-      settings: settings,
       appName: packageInfo.appName,
     );
-  }
-
-  Future<void> _openSettings() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SettingsScreen()),
-    );
-    // Settings may have changed — reload bootstrap to pick up new
-    // spreadsheet id / appearance.
-    if (mounted) setState(() => _bootstrap = _initialize());
   }
 
   @override
@@ -82,7 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return FutureBuilder<_Bootstrap>(
       future: _bootstrap,
       builder: (context, snap) {
-        final appName = snap.data?.appName ?? 'Ledger';
+        final appName = snap.data?.appName ?? 'Airledger';
         return Scaffold(
           appBar: AppBar(
             title: Text(appName),
@@ -90,12 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
               IconButton(
                 icon: const Icon(Icons.refresh),
                 onPressed: () => setState(() => _bootstrap = _initialize()),
-                tooltip: 'Reload schemas',
-              ),
-              IconButton(
-                icon: const Icon(Icons.settings),
-                onPressed: _openSettings,
-                tooltip: 'Settings',
+                tooltip: 'Reload',
               ),
             ],
           ),
@@ -111,49 +93,61 @@ class _HomeScreenState extends State<HomeScreen> {
               if (data.views.isEmpty) {
                 return const Center(child: Text('No views available.'));
               }
-              return ListView.separated(
-                itemCount: data.views.length + 1,
-                separatorBuilder: (_, _) => const Divider(height: 1),
-                itemBuilder: (_, i) {
-                  if (i == data.views.length) {
-                    return ListTile(
-                      leading: const Icon(Icons.bar_chart),
-                      title: const Text('Apps'),
-                      subtitle:
-                          const Text('Interactive analytics from .app.yml'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => AppsScreen(
-                            views: data.views,
-                            repository: data.repository,
+              return Column(
+                children: [
+                  TodayDashboard(
+                    views: data.views,
+                    registry: data.registry,
+                    repository: data.repository,
+                  ),
+                  Expanded(
+                    child: ListView.separated(
+                      itemCount: data.views.length + 1,
+                      separatorBuilder: (_, _) => const Divider(height: 1),
+                      itemBuilder: (_, i) {
+                        if (i == data.views.length) {
+                          return ListTile(
+                            leading: const Icon(Icons.bar_chart),
+                            title: const Text('Apps'),
+                            subtitle: const Text(
+                                'Interactive analytics from .app.yml'),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => AppsScreen(
+                                  views: data.views,
+                                  repository: data.repository,
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                        final view = data.views[i];
+                        return ListTile(
+                          leading: IconResolver.resolve(
+                            view.icon,
+                            size: 22,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
-                        ),
-                      ),
-                    );
-                  }
-                  final view = data.views[i];
-                  return ListTile(
-                    leading: IconResolver.resolve(
-                      view.icon,
-                      size: 22,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          title: Text(view.name),
+                          subtitle: view.description == null
+                              ? null
+                              : Text(view.description!),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => TimelineScreen(
+                                view: view,
+                                repository: data.repository,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                    title: Text(view.name),
-                    subtitle: view.description == null
-                        ? null
-                        : Text(view.description!),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => TimelineScreen(
-                          view: view,
-                          repository: data.repository,
-                        ),
-                      ),
-                    ),
-                  );
-                },
+                  ),
+                ],
               );
             },
           ),
@@ -167,7 +161,6 @@ class _Bootstrap {
   final List<ViewSchema> views;
   final SheetsRepository repository;
   final ConnectorRegistry registry;
-  final Settings settings;
 
   /// OS-level app label (from strings.xml, which brand.dart writes per
   /// `app_name:` in the schemas repo's `ledger.yaml`).
@@ -177,7 +170,6 @@ class _Bootstrap {
     required this.views,
     required this.repository,
     required this.registry,
-    required this.settings,
     required this.appName,
   });
 }
