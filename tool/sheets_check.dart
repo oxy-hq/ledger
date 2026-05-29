@@ -2,8 +2,8 @@
 
 import 'dart:io';
 
-import 'package:ledger/services/schema_parser.dart';
-import 'package:ledger/services/sheets_repository.dart';
+import 'package:airledger/services/schema_parser.dart';
+import 'package:airledger/services/sheets_repository.dart';
 import 'package:yaml/yaml.dart';
 
 /// End-to-end smoke test that does NOT touch the UI. Runs as a CLI script,

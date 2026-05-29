@@ -1,6 +1,6 @@
 // ignore_for_file: avoid_print
 import 'dart:io';
-import 'package:ledger/services/schema_parser.dart';
+import 'package:airledger/services/schema_parser.dart';
 
 void main(List<String> args) {
   final path = args.isNotEmpty

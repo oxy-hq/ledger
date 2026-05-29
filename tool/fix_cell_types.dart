@@ -4,8 +4,8 @@ import 'dart:io';
 
 import 'package:googleapis/sheets/v4.dart' as sheets;
 import 'package:googleapis_auth/auth_io.dart';
-import 'package:ledger/models/view_schema.dart';
-import 'package:ledger/services/schema_parser.dart';
+import 'package:airledger/models/view_schema.dart';
+import 'package:airledger/services/schema_parser.dart';
 
 /// Rewrites a sheet tab so numeric / boolean cells are stored with the
 /// correct Sheets cell type. Fixes the legacy state where every value was

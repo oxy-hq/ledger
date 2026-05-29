@@ -1,4 +1,4 @@
-# ledger
+# airledger
 
 Schema-driven mobile CRUD app. Declare a tracker in YAML, get a working
 Android app with auto-generated forms, a date-filtered timeline, and
@@ -98,7 +98,7 @@ project root:
     ledger.yaml       <- branding (app_name, package_id, icon)
     views/*.view.yml  <- CRUD forms
     templates/*/*.yml <- planned-entry presets
-    apps/*.app.yml    <- ledger analytics apps
+    apps/*.app.yml    <- airledger analytics apps
     assets/icon.png   <- launcher icon source (1024×1024)
 ```
 
@@ -112,9 +112,9 @@ One-time on a new machine:
 
 1. Install Flutter 3.44+ and the Android SDK.
 2. Place a Google Cloud service-account key at
-   `~/.config/ledger/service-account.json` (for Sheets-backed views).
+   `~/.config/airledger/service-account.json` (for Sheets-backed views).
    The SA needs `Editor` access on the target workbook.
-3. Create `~/.config/ledger/config.yaml` with a default spreadsheet id:
+3. Create `~/.config/airledger/config.yaml` with a default spreadsheet id:
    ```yaml
    spreadsheet_id: <your default spreadsheet id>
    ```
@@ -128,7 +128,7 @@ One-time on a new machine:
    ```
 5. Build + install + launch:
    ```sh
-   dart run ~/repos/ledger/tool/brand.dart \
+   dart run ~/repos/airledger/tool/brand.dart \
      --config /path/to/ledger.yaml
    ```
 
@@ -137,7 +137,7 @@ One-time on a new machine:
 After a schema edit:
 
 ```sh
-dart run ~/repos/ledger/tool/brand.dart --config /path/to/ledger.yaml
+dart run ~/repos/airledger/tool/brand.dart --config /path/to/ledger.yaml
 ```
 
 For schemas-only changes (no APK rebuild needed): configure the GitHub

@@ -1,8 +1,8 @@
 // ignore_for_file: avoid_print
 //
-// Branded build CLI for ledger.
+// Branded build CLI for airledger.
 //
-// Reads a branding config (defaults to `~/repos/ledger-schemas/ledger.yaml`)
+// Reads a branding config (defaults to `~/repos/airledger-schemas/ledger.yaml`)
 // and turns the generic Ledger app into a custom-branded install on a
 // connected Android device:
 //
@@ -16,9 +16,9 @@
 //   5. `adb install -r` + `adb shell monkey` (launches the app).
 //
 // Usage (from anywhere):
-//   dart run ~/repos/ledger/tool/brand.dart
-//   dart run ~/repos/ledger/tool/brand.dart --config /path/to/ledger.yaml
-//   dart run ~/repos/ledger/tool/brand.dart --device 57041FDCH002VN
+//   dart run ~/repos/airledger/tool/brand.dart
+//   dart run ~/repos/airledger/tool/brand.dart --config /path/to/ledger.yaml
+//   dart run ~/repos/airledger/tool/brand.dart --device 57041FDCH002VN
 //
 // ledger.yaml schema (all fields except app_name optional):
 //   app_name: "Fitness Logger"
@@ -31,16 +31,16 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
-const _defaultConfig = '~/repos/ledger-schemas/ledger.yaml';
-const _ledgerRepo = '~/repos/ledger';
+const _defaultConfig = '~/repos/airledger-schemas/ledger.yaml';
+const _airledgerRepo = '~/repos/airledger';
 const _defaultPackage = 'com.robertyi.ledger';
 
 Future<int> main(List<String> argv) async {
   final args = _parseArgs(argv);
   final configPath = _expand(args['config'] ?? _defaultConfig);
-  final ledgerDir = Directory(_expand(_ledgerRepo));
-  if (!ledgerDir.existsSync()) {
-    print('error: ledger repo not found at ${ledgerDir.path}');
+  final airledgerDir = Directory(_expand(_airledgerRepo));
+  if (!airledgerDir.existsSync()) {
+    print('error: ledger repo not found at ${airledgerDir.path}');
     return 1;
   }
   final config = _BrandConfig.load(configPath);
@@ -49,18 +49,18 @@ Future<int> main(List<String> argv) async {
       '${config.iconAbsolute != null ? "  icon=${p.basename(config.iconAbsolute!)}" : ""}');
 
   // 1. strings.xml
-  _writeStringsXml(ledgerDir, config.appName);
+  _writeStringsXml(airledgerDir, config.appName);
 
   // 2. applicationId — only patch & clean when switching to a new package.
   // Switching applicationId without a clean leaves stale build artifacts
   // that confuse the install (e.g. INSTALL_FAILED_UPDATE_INCOMPATIBLE).
   final gradleFile = File(p.join(
-      ledgerDir.path, 'android', 'app', 'build.gradle.kts'));
+      airledgerDir.path, 'android', 'app', 'build.gradle.kts'));
   final previousAppId = _readApplicationId(gradleFile);
   if (previousAppId != config.packageId) {
     _patchApplicationId(gradleFile, config.packageId);
     print('› applicationId: $previousAppId → ${config.packageId}');
-    final r = await _run('flutter', ['clean'], workingDir: ledgerDir.path);
+    final r = await _run('flutter', ['clean'], workingDir: airledgerDir.path);
     if (r != 0) return r;
   }
 
@@ -68,12 +68,12 @@ Future<int> main(List<String> argv) async {
   // Always reset launcher icons to the tracked baseline first so a brand
   // without a custom icon doesn't inherit the previous brand's logo
   // (flutter_launcher_icons writes into the shared mipmap-* dirs).
-  await _resetLauncherIconsFromGit(ledgerDir);
+  await _resetLauncherIconsFromGit(airledgerDir);
   if (config.iconAbsolute != null && !config.skipIcons) {
-    _writeLauncherIconConfig(ledgerDir, config.iconAbsolute!);
+    _writeLauncherIconConfig(airledgerDir, config.iconAbsolute!);
     final r = await _run('dart',
         ['run', 'flutter_launcher_icons', '-f', 'flutter_launcher_icons.yaml'],
-        workingDir: ledgerDir.path);
+        workingDir: airledgerDir.path);
     if (r != 0) return r;
   } else {
     print('› No custom icon — using tracked baseline');
@@ -81,12 +81,12 @@ Future<int> main(List<String> argv) async {
 
   // 4. sync_assets.sh — point at this config's schemas repo.
   final configDir = p.dirname(File(configPath).absolute.path);
-  final syncSh = File(p.join(ledgerDir.path, 'tool', 'sync_assets.sh'));
+  final syncSh = File(p.join(airledgerDir.path, 'tool', 'sync_assets.sh'));
   if (syncSh.existsSync()) {
     final r = await _run(
       'bash',
       [syncSh.path],
-      workingDir: ledgerDir.path,
+      workingDir: airledgerDir.path,
       environment: {
         'SCHEMAS_SRC': p.join(configDir, 'views'),
         'TEMPLATES_SRC': p.join(configDir, 'templates'),
@@ -98,12 +98,12 @@ Future<int> main(List<String> argv) async {
 
   // 5. flutter build apk --release
   final r1 = await _run('flutter', ['build', 'apk', '--release'],
-      workingDir: ledgerDir.path);
+      workingDir: airledgerDir.path);
   if (r1 != 0) return r1;
 
   // 5. adb install + launch
   final apk = p.join(
-      ledgerDir.path, 'build', 'app', 'outputs', 'flutter-apk', 'app-release.apk');
+      airledgerDir.path, 'build', 'app', 'outputs', 'flutter-apk', 'app-release.apk');
   final adbDevice = args['device'] ?? config.adbDevice;
   final adbBase = adbDevice == null ? <String>[] : ['-s', adbDevice];
   final r2 = await _run('adb', [...adbBase, 'install', '-r', apk]);
@@ -139,15 +139,15 @@ Map<String, String> _parseArgs(List<String> argv) {
 }
 
 void _printHelpAndExit() {
-  print('Usage: dart run ~/repos/ledger/tool/brand.dart [options]');
+  print('Usage: dart run ~/repos/airledger/tool/brand.dart [options]');
   print('  --config <path>   branding YAML (default $_defaultConfig)');
   print('  --device <serial> adb device serial');
   exit(0);
 }
 
-void _writeStringsXml(Directory ledgerDir, String appName) {
+void _writeStringsXml(Directory airledgerDir, String appName) {
   final f = File(p.join(
-    ledgerDir.path,
+    airledgerDir.path,
     'android',
     'app',
     'src',
@@ -177,7 +177,7 @@ void _writeStringsXml(Directory ledgerDir, String appName) {
 /// brand-build's icon would persist into the next build that doesn't have
 /// its own icon, silently inheriting it. The tracked baseline (HEAD)
 /// is the canonical "no custom icon" state.
-Future<int> _resetLauncherIconsFromGit(Directory ledgerDir) async {
+Future<int> _resetLauncherIconsFromGit(Directory airledgerDir) async {
   return _run(
     'git',
     [
@@ -189,12 +189,12 @@ Future<int> _resetLauncherIconsFromGit(Directory ledgerDir) async {
       'android/app/src/main/res/mipmap-xxhdpi',
       'android/app/src/main/res/mipmap-xxxhdpi',
     ],
-    workingDir: ledgerDir.path,
+    workingDir: airledgerDir.path,
   );
 }
 
-void _writeLauncherIconConfig(Directory ledgerDir, String iconPath) {
-  final f = File(p.join(ledgerDir.path, 'flutter_launcher_icons.yaml'));
+void _writeLauncherIconConfig(Directory airledgerDir, String iconPath) {
+  final f = File(p.join(airledgerDir.path, 'flutter_launcher_icons.yaml'));
   f.writeAsStringSync(
     'flutter_launcher_icons:\n'
     '  android: "ic_launcher"\n'

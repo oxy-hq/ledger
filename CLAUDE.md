@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Operating guide for Claude (or any new contributor) working on the ledger app.
+Operating guide for Claude (or any new contributor) working on the airledger app.
 Read this end-to-end before making non-trivial changes.
 
 ## What this app is
@@ -26,9 +26,9 @@ The deliberate design constraints:
 ## Repo layout (three places to know)
 
 ```
-~/repos/ledger/             this Flutter app (you are here)
+~/repos/airledger/             this Flutter app (you are here)
 ~/repos/ledger-schemas/     YAML view definitions + templates
-~/.config/ledger/           service-account.json + config.yaml
+~/.config/airledger/           service-account.json + config.yaml
 ```
 
 The `tool/sync_assets.sh` script reads from all three and writes to
@@ -41,9 +41,9 @@ schemas repo, patches the launcher label + icon, syncs assets, builds, and
 installs in one shot:
 
 ```sh
-dart run ~/repos/ledger/tool/brand.dart
+dart run ~/repos/airledger/tool/brand.dart
 # or with a custom config:
-dart run ~/repos/ledger/tool/brand.dart --config /path/to/ledger.yaml
+dart run ~/repos/airledger/tool/brand.dart --config /path/to/ledger.yaml
 ```
 
 `ledger.yaml` (default `~/repos/ledger-schemas/ledger.yaml`) supports:
@@ -101,8 +101,8 @@ visual noise.
 |------------------------------------------------------|-------------------------------------|
 | `~/repos/ledger-schemas/views/*.view.yml`            | `assets/schemas/`                   |
 | `~/repos/ledger-schemas/templates/<view>/*.yml`      | `assets/templates/<view>/`          |
-| `~/.config/ledger/service-account.json`              | `assets/service-account.json`       |
-| `~/.config/ledger/config.yaml` (spreadsheet_id only) | `assets/config.yaml`                |
+| `~/.config/airledger/service-account.json`              | `assets/service-account.json`       |
+| `~/.config/airledger/config.yaml` (spreadsheet_id only) | `assets/config.yaml`                |
 
 `pubspec.yaml` declares the assets — keep its `flutter.assets:` block in
 sync when adding new asset directories.

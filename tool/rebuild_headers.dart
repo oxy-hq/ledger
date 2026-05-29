@@ -4,8 +4,8 @@ import 'dart:io';
 
 import 'package:googleapis/sheets/v4.dart' as sheets;
 import 'package:googleapis_auth/auth_io.dart';
-import 'package:ledger/models/view_schema.dart';
-import 'package:ledger/services/schema_parser.dart';
+import 'package:airledger/models/view_schema.dart';
+import 'package:airledger/services/schema_parser.dart';
 
 /// Recovery tool: rewrites a tab so that
 ///   - row 1 = headers (taken from the schema's dimension `expr`s, in order)

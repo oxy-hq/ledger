@@ -1,5 +1,5 @@
-name: ledger
-description: "Generic CRUD mobile app driven by YAML schemas"
+name: airledger
+description: "Schema-driven mobile CRUD app — the input layer of the air* stack"
 publish_to: 'none'
 version: 0.1.0+1
 

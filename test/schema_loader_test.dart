@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ledger/models/view_schema.dart';
-import 'package:ledger/services/schema_parser.dart';
+import 'package:airledger/models/view_schema.dart';
+import 'package:airledger/services/schema_parser.dart';
 
 const _meals = '''
 name: meals
