@@ -30,6 +30,9 @@ class InputOverlay {
   /// Icon for the view — lucide name (e.g. `dumbbell`), emoji, or URL.
   final String? icon;
 
+  /// Post-log hook (LLM comment after a row is logged).
+  final PostLogHook? postLog;
+
   /// Per-dimension overlays, keyed by dimension name.
   final Map<String, DimensionOverlay> dimensions;
 
@@ -40,6 +43,7 @@ class InputOverlay {
     this.listDisplay,
     this.spreadsheetId,
     this.icon,
+    this.postLog,
     this.dimensions = const {},
   });
 }
@@ -98,7 +102,17 @@ InputOverlay parseInputOverlay(String yamlText) {
         : _parseListDisplay(node['list_display'] as YamlMap),
     spreadsheetId: node['spreadsheet_id'] as String?,
     icon: node['icon'] as String?,
+    postLog: node['post_log'] == null
+        ? null
+        : _parsePostLog(node['post_log'] as YamlMap),
     dimensions: dimensions,
+  );
+}
+
+PostLogHook _parsePostLog(YamlMap node) {
+  return PostLogHook(
+    model: _requireString(node, 'model'),
+    prompt: _requireString(node, 'prompt'),
   );
 }
 
@@ -260,5 +274,6 @@ ViewSchema applyInputOverlay(ViewSchema view, InputOverlay overlay) {
     listDisplay: overlay.listDisplay,
     plannable: overlay.plannable,
     icon: overlay.icon,
+    postLog: overlay.postLog,
   );
 }

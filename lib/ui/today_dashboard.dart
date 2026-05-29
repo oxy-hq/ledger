@@ -146,6 +146,9 @@ class _StatPill extends StatelessWidget {
           builder: (_) => TimelineScreen(
             view: view,
             repository: repository,
+            // Dashboard navigation doesn't need an LLM client — the
+            // timeline gracefully skips the post-log hook when one
+            // isn't provided.
           ),
         ),
       ),

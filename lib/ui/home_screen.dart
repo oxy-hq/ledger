@@ -6,6 +6,8 @@ import '../models/view_schema.dart';
 import '../services/app_config.dart';
 import '../services/connector_registry.dart';
 import '../services/icon_resolver.dart';
+import '../services/llm_client.dart';
+import '../services/llm_response_cache.dart';
 import '../services/schema_loader.dart';
 import '../services/sheets_repository.dart';
 import 'apps_screen.dart';
@@ -56,11 +58,15 @@ class _HomeScreenState extends State<HomeScreen> {
     for (final view in views) {
       await registry.forView(view).ensureTable(view);
     }
+    final llm = LlmClient(assetConfig.models);
+    final llmCache = LlmResponseCache();
     return _Bootstrap(
       views: views,
       repository: repo,
       registry: registry,
       appName: packageInfo.appName,
+      llm: llm,
+      llmCache: llmCache,
     );
   }
 
@@ -140,6 +146,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               builder: (_) => TimelineScreen(
                                 view: view,
                                 repository: data.repository,
+                                llm: data.llm,
+                                llmCache: data.llmCache,
                               ),
                             ),
                           ),
@@ -161,6 +169,8 @@ class _Bootstrap {
   final List<ViewSchema> views;
   final SheetsRepository repository;
   final ConnectorRegistry registry;
+  final LlmClient llm;
+  final LlmResponseCache llmCache;
 
   /// OS-level app label (from strings.xml, which brand.dart writes per
   /// `app_name:` in the schemas repo's `ledger.yaml`).
@@ -171,6 +181,8 @@ class _Bootstrap {
     required this.repository,
     required this.registry,
     required this.appName,
+    required this.llm,
+    required this.llmCache,
   });
 }
 

@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
+import 'package:jinja/jinja.dart' hide Template;
+
 import '../models/planned_entry.dart';
 import '../models/view_schema.dart';
 import '../services/derive.dart';
 import '../services/list_display_render.dart';
+import '../services/llm_client.dart';
+import '../services/llm_response_cache.dart';
 import '../services/log_now.dart';
 import '../services/plan_store.dart';
 import '../services/sheets_repository.dart';
@@ -56,11 +60,15 @@ class _Item {
 class TimelineScreen extends StatefulWidget {
   final ViewSchema view;
   final SheetsRepository repository;
+  final LlmClient? llm;
+  final LlmResponseCache? llmCache;
 
   const TimelineScreen({
     super.key,
     required this.view,
     required this.repository,
+    this.llm,
+    this.llmCache,
   });
 
   @override
@@ -87,6 +95,17 @@ class _TimelineScreenState extends State<TimelineScreen> {
   void initState() {
     super.initState();
     _items = _fetch();
+    widget.llmCache?.addListener(_onLlmUpdate);
+  }
+
+  @override
+  void dispose() {
+    widget.llmCache?.removeListener(_onLlmUpdate);
+    super.dispose();
+  }
+
+  void _onLlmUpdate() {
+    if (mounted) setState(() {});
   }
 
   Future<List<_Item>> _fetch() async {
@@ -171,6 +190,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
                         item: item,
                         selected: selected,
                         selectionMode: _selectionMode,
+                        llmCache: widget.llmCache,
                         onTap: _selectionMode
                             ? () => _toggleSelect(item)
                             : () => _edit(item),
@@ -493,7 +513,49 @@ class _TimelineScreenState extends State<TimelineScreen> {
         SnackBar(content: Text('Log failed: $e — refreshing')),
       );
       _reload();
+      return;
     }
+
+    // Fire the post-log LLM hook (if configured) in the background.
+    // Response lands in llmCache and the tile rebuilds when ready.
+    final hook = widget.view.postLog;
+    final llm = widget.llm;
+    final cache = widget.llmCache;
+    final rowId = values['id']?.toString();
+    if (hook != null && llm != null && cache != null && rowId != null) {
+      _runPostLogHook(hook, values, rowId, llm, cache);
+    }
+  }
+
+  /// Renders the post-log Jinja prompt with the row context, calls the
+  /// model, stores the response in the cache. Fire-and-forget — the
+  /// timeline rebuilds via the cache listener when the response arrives.
+  void _runPostLogHook(
+    PostLogHook hook,
+    Record row,
+    String rowId,
+    LlmClient llm,
+    LlmResponseCache cache,
+  ) {
+    if (!llm.has(hook.model)) return;
+    cache.markPending(rowId);
+    () async {
+      try {
+        final env = Environment();
+        final tpl = env.fromString(hook.prompt);
+        final rendered = tpl.render({
+          'row': row,
+          'view': {
+            'name': widget.view.name,
+            'description': widget.view.description,
+          },
+        });
+        final response = await llm.complete(hook.model, rendered);
+        cache.put(rowId, response);
+      } catch (e) {
+        cache.putError(rowId, e.toString());
+      }
+    }();
   }
 }
 
@@ -694,6 +756,7 @@ class _RecordTile extends StatelessWidget {
   final VoidCallback onLongPress;
   final VoidCallback onDelete;
   final VoidCallback onLogNow;
+  final LlmResponseCache? llmCache;
 
   const _RecordTile({
     required this.view,
@@ -704,12 +767,18 @@ class _RecordTile extends StatelessWidget {
     required this.onLongPress,
     required this.onDelete,
     required this.onLogNow,
+    this.llmCache,
   });
 
   @override
   Widget build(BuildContext context) {
     final subtitle = _subtitleFor(view, item.values);
     final scheme = Theme.of(context).colorScheme;
+    final rowId = item.logged?['id']?.toString();
+    final llmResponse =
+        rowId == null ? null : llmCache?.get(rowId);
+    final llmPending =
+        rowId == null ? false : (llmCache?.isPending(rowId) ?? false);
     final tile = ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
       minLeadingWidth: 0,
@@ -731,7 +800,37 @@ class _RecordTile extends StatelessWidget {
               : const Icon(Icons.check_circle,
                   size: 22, color: Colors.green)),
       title: Text(_titleFor(view, item.values)),
-      subtitle: subtitle == null ? null : Text(subtitle),
+      subtitle: (subtitle == null && llmResponse == null && !llmPending)
+          ? null
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (subtitle != null) Text(subtitle),
+                if (llmPending)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '…',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                            fontStyle: FontStyle.italic,
+                          ),
+                    ),
+                  )
+                else if (llmResponse != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      llmResponse,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                            fontStyle: FontStyle.italic,
+                            height: 1.35,
+                          ),
+                    ),
+                  ),
+              ],
+            ),
       trailing: !selectionMode && item.isPlanned
           ? IconButton(
               icon: const Icon(

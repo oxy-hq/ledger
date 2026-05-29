@@ -45,6 +45,10 @@ class ViewSchema {
   /// emoji (`💪`), or URLs.
   final String? icon;
 
+  /// Optional post-log hook — triggers an LLM after a row is logged.
+  /// See [PostLogHook].
+  final PostLogHook? postLog;
+
   ViewSchema({
     required this.name,
     this.description,
@@ -58,6 +62,7 @@ class ViewSchema {
     this.listDisplay,
     this.plannable,
     this.icon,
+    this.postLog,
   });
 
   Dimension? dimensionByName(String name) =>
@@ -197,4 +202,28 @@ class Plannable {
   final LogFormat logFormat;
 
   Plannable({required this.logField, required this.logFormat});
+}
+
+/// Post-log hook: after a row is committed to the warehouse, render
+/// [prompt] (Jinja2) against the row + view context, send it to the
+/// configured [model], and surface the response in the timeline.
+///
+/// Configured in `.input.yml`:
+///
+/// ```yaml
+/// post_log:
+///   model: openai-mini             # references a name from config.yml models:
+///   prompt: |
+///     Briefly comment on this {{ view.name }} entry:
+///     {{ row }}
+/// ```
+class PostLogHook {
+  /// Model name from `config.yml` `models:`.
+  final String model;
+
+  /// Jinja2 prompt template. Available context: `view` (ViewSchema-ish
+  /// map), `row` (the just-logged record).
+  final String prompt;
+
+  PostLogHook({required this.model, required this.prompt});
 }
