@@ -65,14 +65,18 @@ Future<int> main(List<String> argv) async {
   }
 
   // 3. icons
+  // Always reset launcher icons to the tracked baseline first so a brand
+  // without a custom icon doesn't inherit the previous brand's logo
+  // (flutter_launcher_icons writes into the shared mipmap-* dirs).
+  await _resetLauncherIconsFromGit(ledgerDir);
   if (config.iconAbsolute != null && !config.skipIcons) {
     _writeLauncherIconConfig(ledgerDir, config.iconAbsolute!);
     final r = await _run('dart',
         ['run', 'flutter_launcher_icons', '-f', 'flutter_launcher_icons.yaml'],
         workingDir: ledgerDir.path);
     if (r != 0) return r;
-  } else if (config.skipIcons) {
-    print('› Skipping icon regen (skip_icons: true)');
+  } else {
+    print('› No custom icon — using tracked baseline');
   }
 
   // 4. sync_assets.sh — point at this config's schemas repo.
@@ -166,6 +170,27 @@ void _writeStringsXml(Directory ledgerDir, String appName) {
     '</resources>\n',
   );
   print('› Wrote res/values/strings.xml (app_name="$appName")');
+}
+
+/// Restore the tracked launcher icon files from git. flutter_launcher_icons
+/// writes into shared `mipmap-*` directories; without this reset, every
+/// brand-build's icon would persist into the next build that doesn't have
+/// its own icon, silently inheriting it. The tracked baseline (HEAD)
+/// is the canonical "no custom icon" state.
+Future<int> _resetLauncherIconsFromGit(Directory ledgerDir) async {
+  return _run(
+    'git',
+    [
+      'checkout',
+      '--',
+      'android/app/src/main/res/mipmap-hdpi',
+      'android/app/src/main/res/mipmap-mdpi',
+      'android/app/src/main/res/mipmap-xhdpi',
+      'android/app/src/main/res/mipmap-xxhdpi',
+      'android/app/src/main/res/mipmap-xxxhdpi',
+    ],
+    workingDir: ledgerDir.path,
+  );
 }
 
 void _writeLauncherIconConfig(Directory ledgerDir, String iconPath) {
