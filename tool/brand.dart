@@ -31,6 +31,8 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import 'build_config.dart';
+
 const _defaultConfig = '~/repos/airledger-schemas/ledger.yaml';
 const _airledgerRepo = '~/repos/airledger';
 const _defaultPackage = 'com.robertyi.ledger';
@@ -94,6 +96,22 @@ Future<int> main(List<String> argv) async {
       },
     );
     if (r != 0) return r;
+  }
+
+  // 4b. Resolve <schemas-dir>/config.yml with .env-backed env vars and
+  // write the result to assets/config.yaml. This is the oxy-compatible
+  // databases:-style config; the bundled assets/config.yaml's legacy
+  // top-level spreadsheet_id (synced by sync_assets.sh from
+  // ~/.config/airledger/config.yaml) is preserved underneath as a fallback.
+  final repoConfig = File(p.join(configDir, 'config.yml'));
+  if (repoConfig.existsSync()) {
+    final env = loadEnvFile(configDir);
+    final raw = loadYaml(repoConfig.readAsStringSync());
+    final resolved = resolveConfig(raw, env);
+    final out = File(p.join(airledgerDir.path, 'assets', 'config.yaml'));
+    out.writeAsStringSync(emitYaml(resolved));
+    print('› Resolved ${repoConfig.path} → assets/config.yaml '
+        '(${env.length} env var(s) available)');
   }
 
   // 5. flutter build apk --release

@@ -8,11 +8,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-SCHEMAS_SRC="${SCHEMAS_SRC:-$HOME/repos/ledger-schemas/views}"
-TEMPLATES_SRC="${TEMPLATES_SRC:-$HOME/repos/ledger-schemas/templates}"
-APPS_SRC="${APPS_SRC:-$HOME/repos/ledger-schemas/apps}"
-SA_KEY_SRC="${SA_KEY_SRC:-$HOME/.config/ledger/service-account.json}"
-CONFIG_SRC="${CONFIG_SRC:-$HOME/.config/ledger/config.yaml}"
+SCHEMAS_SRC="${SCHEMAS_SRC:-$HOME/repos/airledger-schemas/views}"
+TEMPLATES_SRC="${TEMPLATES_SRC:-$HOME/repos/airledger-schemas/templates}"
+APPS_SRC="${APPS_SRC:-$HOME/repos/airledger-schemas/apps}"
+SA_KEY_SRC="${SA_KEY_SRC:-$HOME/.config/airledger/service-account.json}"
+CONFIG_SRC="${CONFIG_SRC:-$HOME/.config/airledger/config.yaml}"
 
 mkdir -p assets/schemas assets/templates assets/apps
 
