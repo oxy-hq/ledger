@@ -40,6 +40,7 @@ Future<void> main(List<String> args) async {
     'id',
     'date',
     'day_of_week',
+    'time',
     'weight_lbs',
     'body_fat_caliper',
     'body_fat_omron',
@@ -87,8 +88,8 @@ Future<void> main(List<String> args) async {
     return r[col].toString().trim();
   }
 
-  // Source dates look like '2025-10-28 14:13:00'. Take everything before
-  // the space; parse what's left as ISO. Skip rows where we can't.
+  // Source datetimes look like '2026-05-30 7:45' or '2025-10-28 14:13:00'.
+  // Split into date + time. Skip rows whose date can't be parsed.
   String? toDate(String s) {
     if (s.isEmpty) return null;
     final datePart = s.split(' ').first;
@@ -100,12 +101,31 @@ Future<void> main(List<String> args) async {
     }
   }
 
+  // Returns 'H:MM' (zero-padded hour kept as source has it). Drops seconds
+  // if present. Empty string if the source had no time component or it was
+  // midnight (a Sheets default for date-only entries).
+  String toTime(String s) {
+    final parts = s.split(' ');
+    if (parts.length < 2) return '';
+    final timePart = parts[1].trim();
+    if (timePart.isEmpty) return '';
+    final hm = timePart.split(':');
+    if (hm.length < 2) return '';
+    final h = int.tryParse(hm[0]);
+    final m = int.tryParse(hm[1]);
+    if (h == null || m == null) return '';
+    if (h == 0 && m == 0) return ''; // sentinel "no time" — synthetic midnight
+    return '${h}:${m.toString().padLeft(2, '0')}';
+  }
+
   print('\nbuilding target rows ...');
   final target = <List<String>>[];
   var dropped = 0;
   for (var i = 1; i < rows.length; i++) {
     final r = rows[i];
-    final date = toDate(at(r, iDt));
+    final raw = at(r, iDt);
+    final date = toDate(raw);
+    final time = toTime(raw);
     final weight = at(r, iWeight);
     final caliper = at(r, iCaliper);
     final omron = at(r, iOmron);
@@ -123,6 +143,7 @@ Future<void> main(List<String> args) async {
       uuid.v4(),
       date,
       dow,
+      time,
       weight,
       caliper,
       omron,
