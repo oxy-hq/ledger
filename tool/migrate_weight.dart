@@ -7,18 +7,15 @@ import 'package:googleapis_auth/auth_io.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
-/// Migrates the legacy body-composition log into the fitness workbook's
-/// new `weight` tab.
-///   - Source: 1GfL65B3upDl188h28CwDSMJ8uhEXfG_fPPjdTES9f-I
-///             'Body Composition (UTC) - Archive'
+/// Migrates the live body-composition log into the fitness workbook's
+/// `weight` tab.
+///   - Source: 1GfL65B3upDl188h28CwDSMJ8uhEXfG_fPPjdTES9f-I 'Body Composition'
 ///   - Dest:   1C1rSudguUv00gYsb7i82XV6OM1V2KSZ4BGwMliwKDG4 'weight'
 ///
 /// Per-row transformations:
 ///   - Generate UUID for id
-///   - Source 'Datetime (UTC)' (e.g. '2025-10-28 14:13:00') → date only
-///     (e.g. '2025-10-28'). Time is dropped — weigh-in time-of-day is
-///     either midnight in the archive or device sync time in recent rows,
-///     and isn't meaningful for the use case.
+///   - Source 'Datetime (Local)' (e.g. '2026-05-30 7:45') → date only.
+///     Weigh-in time-of-day isn't meaningful for the use case.
 ///   - Compute day_of_week from date
 ///   - Pass body fat columns through verbatim (sparse — most rows blank)
 ///   - Drop rows with no date *and* no weight *and* no body-fat values
@@ -34,7 +31,7 @@ Future<void> main(List<String> args) async {
   }
 
   const sourceId = '1GfL65B3upDl188h28CwDSMJ8uhEXfG_fPPjdTES9f-I';
-  const sourceTab = 'Body Composition (UTC) - Archive';
+  const sourceTab = 'Body Composition';
   const destId = '1C1rSudguUv00gYsb7i82XV6OM1V2KSZ4BGwMliwKDG4';
   const destTab = 'weight';
   const uuid = Uuid();
@@ -76,12 +73,12 @@ Future<void> main(List<String> args) async {
     return i < 0 ? null : i;
   }
 
-  final iDt = srcIdx('Datetime (UTC)');
-  final iCaliper = srcIdx('Body Fat % (Caliper)');
+  final iDt = srcIdx('Datetime (Local)');
+  final iCaliper = srcIdx('Body Fat % (Caliper - Gut)');
   final iOmron = srcIdx('Body Fat % (Omron)');
   final iWeight = srcIdx('Weight (lbs)');
   if (iDt == null) {
-    print('source missing "Datetime (UTC)" column');
+    print('source missing "Datetime (Local)" column');
     exit(1);
   }
 
